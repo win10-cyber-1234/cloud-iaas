@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Simulateur Cloud IaaS</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    .section {
+      background-color: #fff;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 5px;
+      box-shadow: 0 0 5px #ccc;
+    }
+
+    input, button {
+      padding: 10px;
+      margin: 5px 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    #vmList, #storageList {
+      margin-top: 10px;
+    }
+
+    /* Terminal */
+    #terminal {
+      background-color: #000;
+      color: #0f0;
+      font-family: monospace;
+      padding: 15px;
+      border-radius: 5px;
+      height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      border: 1px solid #444;
+    }
+
+    #cmdInput {
+      width: 100%;
+      padding: 10px;
+      font-family: monospace;
+      background: #222;
+      color: #0f0;
+      border: 1px solid #555;
+      margin-top: 10px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .login-form {
+      max-width: 400px;
+      margin: auto;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 5px;
+      box-shadow: 0 0 10px #ccc;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="loginPage" class="login-form">
+    <h2>Connexion au cloud</h2>
+    <form onsubmit="login(event)">
+      <input type="text" id="username" placeholder="Nom d'utilisateur" required>
+      <input type="password" id="password" placeholder="Mot de passe" required>
+      <button type="submit">Se connecter</button>
+    </form>
+    <p id="loginMessage" style="color: red;"></p>
+  </div>
+
+  <div id="mainPage" class="hidden">
+    <h1>☁️ Simulateur Cloud IaaS</h1>
+
+    <!-- VM Creation -->
+    <div class="section">
+      <h2>Créer une VM</h2>
+      <form onsubmit="createVM(event)">
+        <input type="text" id="vmName" placeholder="Nom de la VM" required>
+        <input type="number" id="vmCPU" placeholder="CPU (vCPU)" required>
+        <input type="number" id="vmRAM" placeholder="RAM (Go)" required>
+        <input type="number" id="vmdisque-dur" placeholder="SDD/HDD (Go)" required>
+        <button type="submit">Créer VM</button>
+      </form>
+      <div id="vmList"></div>
+    </div>
+
+    <!-- Terminal pour base de données -->
+    <div class="section">
+      <h2>Terminal - Simulation Base de Données</h2>
+      <div id="terminal"></div>
+      <input type="text" id="cmdInput" placeholder="Tapez une commande et appuyez sur Entrée" onkeydown="handleCommand(event)">
+    </div>
+
+    <!-- Simulation de stockage -->
+    <div class="section">
+      <h2>Ajouter des Fichiers au Stockage</h2>
+      <form onsubmit="addFile(event)">
+        <input type="file" id="fileInput" accept=".txt,image/*">
+        <button type="submit">Ajouter Fichier</button>
+      </form>
+      <div id="storageList"></div>
+    </div>
+  </div>
+
+  <script>
+    // === GESTION DE LA CONNEXION ===
+    const correctUsername = "admin";
+    const correctPassword = "Admin123";
+    const loginPage = document.getElementById("loginPage");
+    const mainPage = document.getElementById("mainPage");
+    const loginMessage = document.getElementById("loginMessage");
+
+    function login(e) {
+      e.preventDefault();
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+
+      if (username === correctUsername && password === correctPassword) {
+        loginPage.classList.add("hidden");
+        mainPage.classList.remove("hidden");
+      } else {
+        loginMessage.textContent = "Nom d'utilisateur ou mot de passe incorrect.";
+      }
+    }
+
+    // === GESTION DES VMs ===
+    let vms = JSON.parse(localStorage.getItem("vms") || "[]");
+
+    function createVM(e) {
+      e.preventDefault();
+      const name = document.getElementById("vmName").value;
+      const cpu = document.getElementById("vmCPU").value;
+      const ram = document.getElementById("vmRAM").value;
+      vms.push({ name, cpu, ram });
+      localStorage.setItem("vms", JSON.stringify(vms));
+      document.getElementById("vmName").value = "";
+      document.getElementById("vmCPU").value = "";
+      document.getElementById("vmRAM").value = "";
+      displayVMs();
+    }
+
+    function displayVMs() {
+      const list = document.getElementById("vmList");
+      list.innerHTML = "<h4>VMs créées :</h4>";
+      vms.forEach(vm => {
+        list.innerHTML += `• ${vm.name} - ${vm.cpu} vCPU - ${vm.ram} Go<br>`;
+      });
+    }
+
+    displayVMs();
+
+    // === SIMULATION BASE DE DONNÉES ===
+    const terminal = document.getElementById("terminal");
+    const input = document.getElementById("cmdInput");
+
+    let currentDB = null;
+    let databases = JSON.parse(localStorage.getItem("databases") || "{}");
+
+    function log(text) {
+      terminal.innerText += "\n" + text;
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function saveDB() {
+      localStorage.setItem("databases", JSON.stringify(databases));
+    }
+
+    function handleCommand(e) {
+      if (e.key === "Enter") {
+        const cmd = input.value.trim();
+        log("> " + cmd);
+        processCommand(cmd.toLowerCase());
+        input.value = "";
+      }
+    }
+
+    function processCommand(cmd) {
+      const parts = cmd.split(" ");
+
+      if (cmd.startsWith("create database")) {
+        const dbName = parts[2];
+        if (!databases[dbName]) {
+          databases[dbName] = {};
+          saveDB();
+          log(`📁 Base de données "${dbName}" créée`);
+        } else {
+          log(`⚠️ La base "${dbName}" existe déjà`);
+        }
+
+      } else if (cmd.startsWith("use")) {
+        const dbName = parts[1];
+        if (databases[dbName]) {
+          currentDB = dbName;
+          log(`📂 Base sélectionnée : ${dbName}`);
+        } else {
+          log(`❌ Base "${dbName}" non trouvée`);
+        }
+
+      } else if (cmd.startsWith("create table")) {
+        if (!currentDB) return log("❌ Aucune base sélectionnée.");
+        const tableName = parts[2];
+        const columnsRaw = cmd.match(/\(([^)]+)\)/);
+        if (!columnsRaw) return log("❌ Syntaxe : create table nom (col1, col2)");
+        const columns = columnsRaw[1].split(",").map(c => c.trim());
+        databases[currentDB][tableName] = { columns, rows: [] };
+        saveDB();
+        log(`📦 Table "${tableName}" créée avec colonnes : ${columns.join(", ")}`);
+
+      } else if (cmd.startsWith("insert into")) {
+        if (!currentDB) return log("❌ Aucune base sélectionnée.");
+        const tableName = parts[2];
+        const valuesRaw = cmd.match(/\(([^)]+)\)/);
+        if (!valuesRaw) return log("❌ Syntaxe : insert into nom values (val1, val2)");
+        const values = valuesRaw[1].split(",").map(v => v.trim());
+        if (!databases[currentDB][tableName]) return log(`❌ Table "${tableName}" introuvable`);
+        databases[currentDB][tableName].rows.push(values);
+        saveDB();
+        log(`✅ Données insérées dans "${tableName}"`);
+
+      } else if (cmd.startsWith("select * from")) {
+        if (!currentDB) return log("❌ Aucune base sélectionnée.");
+        const tableName = parts[3];
+        const table = databases[currentDB][tableName];
+        if (!table) return log(`❌ Table "${tableName}" non trouvée`);
+        let output = `📄 Résultats :\n${table.columns.join(" | ")}`;
+        table.rows.forEach(row => {
+          output += "\n" + row.join(" | ");
+        });
+        log(output);
+
+      } else if (cmd === "clear") {
+        terminal.innerText = "";
+
+      } else {
+        log("❓ Commande inconnue.\nExemples :\n- create database mydb\n- use mydb\n- create table users (id, name)\n- insert into users values (1, John)\n- select * from users");
+      }
+    }
+
+    // === SIMULATION DE STOCKAGE ===
+    let files = JSON.parse(localStorage.getItem("files") || "[]");
+
+    function addFile(e) {
+      e.preventDefault();
+      const fileInput = document.getElementById("fileInput");
+      const file = fileInput.files[0];
+      if (file) {
+        const fileType = file.type.split("/")[0];
+        files.push({ name: file.name, type: fileType, size: file.size });
+        localStorage.setItem("files", JSON.stringify(files));
+        fileInput.value = ""; // Reset input
+        displayFiles();
+        log(`✅ Fichier "${file.name}" ajouté au stockage`);
+      }
+    }
+
+    function displayFiles() {
+      const list = document.getElementById("storageList");
+      list.innerHTML = "<h4>Fichiers dans le stockage :</h4>";
+      files.forEach(file => {
+        list.innerHTML += `• ${file.name} - Type: ${file.type} - Taille: ${file.size} octets<br>`;
+      });
+    }
+
+    displayFiles();
+  </script>
+
+</body>
+</html>
